@@ -17,8 +17,8 @@ def main():
     # Agregar argumentos
     parser.add_argument('--img', metavar='PATH', type=str, required=True,
                         help='Ruta al directorio que contiene las imágenes')
-    parser.add_argument('--pos', metavar='PATH', type=str, required=False, default=None,
-                        help='Ruta al directorio que contiene los archivos JSON de posición (opcional)')
+    parser.add_argument('--pos', metavar='PATH', type=str, required=True,
+                        help='Ruta al archivo poses.txt que contiene las matrices de transformación')
     parser.add_argument('--use_cuda', action='store_true', 
                         help='Utilizar CUDA para acelerar el proceso con instant-ngp (si está disponible)')
     
