@@ -1,7 +1,5 @@
 import os
 import sys
-import json
-import shutil
 import numpy as np
 import re
 import imageio
@@ -50,10 +48,6 @@ def parse_poses_file(poses_file_path):
     except Exception as e:
         print(f"Error al parsear el archivo de poses {poses_file_path}: {e}")
         return []
-
-
-
-
 
 
 def load_nerf_data(img_path, poses_file_path, half_res=False, train_split=0.8):
@@ -291,5 +285,3 @@ def generate_render_poses(poses, n_poses=120, radius_scale=1.0):
         render_poses.append(pose)
     
     return np.array(render_poses)
-
-

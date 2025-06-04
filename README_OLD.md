@@ -1,4 +1,4 @@
-# Reconstrucción 3D con Neural Radiance Fields (NeRF) - Arquitectura Modular
+# Reconstrucción 3D con Neural Radiance Fields (NeRF)
 
 Este proyecto forma parte de un Trabajo de Fin de Máster (TFM) que implementa un sistema de reconstrucción 3D utilizando Neural Radiance Fields (NeRF) a partir de imágenes y datos de posición de cámara.
 
