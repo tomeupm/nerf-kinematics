@@ -142,49 +142,39 @@ def load_nerf_data(img_path, poses_file_path, half_res=False, train_split=0.8):
     # Obtener dimensiones de imagen
     H, W = imgs[0].shape[:2]
     
-    # Estimar focal length basado en el formato estándar de NeRF
-    # Esto es una aproximación - idealmente vendría de los parámetros intrínsecos
-    focal = 0.5 * W / np.tan(0.5 * 0.6911503837897544)  # FOV de ~40 grados
+    # Calcular focal length basado en las especificaciones de la cámara
+    # FOV horizontal: 87°, FOV vertical: 58°
+    fov_horizontal = 87.0 * np.pi / 180.0  # Convertir a radianes
+    fov_vertical = 58.0 * np.pi / 180.0    # Convertir a radianes
+    
+    # Calcular focal length usando el FOV horizontal
+    focal_x = W / (2.0 * np.tan(fov_horizontal / 2.0))
+    # Calcular focal length usando el FOV vertical  
+    focal_y = H / (2.0 * np.tan(fov_vertical / 2.0))
+    
+    # Usar el promedio de ambos focales o el horizontal (más común)
+    focal = focal_x  # NeRF típicamente usa focal cuadrado
+    
+    print(f"FOV de la cámara - Horizontal: {87.0}°, Vertical: {58.0}°")
+    print(f"Focal length calculado - fx: {focal_x:.2f}, fy: {focal_y:.2f}, usando: {focal:.2f}")
     
     # Aplicar reducción de resolución si se solicita
     if half_res:
         print("Aplicando reducción de resolución a la mitad...")
-        # Redimensionar imágenes usando interpolación bilineal
-        new_imgs = []
         new_h, new_w = H//2, W//2
+        new_imgs = []
         
         for img in imgs:
-            resized = np.zeros((new_h, new_w, 4), dtype=np.float32)
-            # Interpolación bilineal simple
-            for i in range(new_h):
-                for j in range(new_w):
-                    # Mapeo a coordenadas originales
-                    orig_i = (i + 0.5) * 2 - 0.5
-                    orig_j = (j + 0.5) * 2 - 0.5
-                    
-                    # Límites
-                    i0, i1 = int(np.floor(orig_i)), int(np.ceil(orig_i))
-                    j0, j1 = int(np.floor(orig_j)), int(np.ceil(orig_j))
-                    
-                    i0 = max(0, min(H-1, i0))
-                    i1 = max(0, min(H-1, i1))
-                    j0 = max(0, min(W-1, j0))
-                    j1 = max(0, min(W-1, j1))
-                    
-                    # Pesos de interpolación
-                    wi = orig_i - i0 if i1 > i0 else 0
-                    wj = orig_j - j0 if j1 > j0 else 0
-                    
-                    # Interpolación bilineal
-                    resized[i, j] = (1-wi)*(1-wj)*img[i0, j0] + (1-wi)*wj*img[i0, j1] + \
-                                  wi*(1-wj)*img[i1, j0] + wi*wj*img[i1, j1]
-            
+            # Submuestreo simple (tomar cada segundo píxel)
+            resized = img[::2, ::2]
             new_imgs.append(resized)
         
         imgs = np.array(new_imgs)
         H = H // 2
         W = W // 2
         focal = focal / 2.0
+        
+        print(f"Nueva resolución: {H}x{W}, nuevo focal: {focal:.2f}")
     
     # Crear splits para entrenamiento/validación/test
     n_imgs = len(imgs)
