@@ -43,9 +43,10 @@ class Embedder:
             freq_bands = tf.linspace(2.**0., 2.**max_freq, N_freqs)
 
         for freq in freq_bands:
+            f = float(freq)  # más seguro para @tf.function y modo gráfico
+            # f = float(tf.keras.backend.get_value(freq)) # si se usa GPU
             for p_fn in self.kwargs['periodic_fns']:
-                embed_fns.append(lambda x, p_fn=p_fn,
-                                 freq=freq: p_fn(x * freq))
+                embed_fns.append(lambda x, p_fn=p_fn, freq=f: p_fn(x * freq))
                 out_dim += d
 
         self.embed_fns = embed_fns
@@ -124,7 +125,8 @@ def batchify(fn, chunk):
     def ret(inputs):
         return tf.concat([fn(inputs[i:i+chunk]) for i in range(0, inputs.shape[0], chunk)], 0)
     return ret
-  
+
+@tf.function
 def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
     """Prepares inputs and applies network 'fn'."""
 

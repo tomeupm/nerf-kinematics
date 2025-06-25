@@ -7,7 +7,7 @@ import imageio
 from tqdm import tqdm
 
 # from nerf_model import NeRF, positional_encoding, get_rays, raw2outputs
-from nerf_model import batchify, get_rays
+from nerf_model import get_rays
 
 
 # --------------------------------Versión Original-------------------------------
@@ -41,25 +41,6 @@ def sample_pdf(bins, weights, N_samples, det=False):
     samples = bins_g[..., 0] + t * (bins_g[..., 1]-bins_g[..., 0])
 
     return samples
-
-
-def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
-    """Prepares inputs and applies network 'fn'."""
-
-    inputs_flat = tf.reshape(inputs, [-1, inputs.shape[-1]])
-
-    embedded = embed_fn(inputs_flat)
-    if viewdirs is not None:
-        input_dirs = tf.broadcast_to(viewdirs[:, None], inputs.shape)
-        input_dirs_flat = tf.reshape(input_dirs, [-1, input_dirs.shape[-1]])
-        embedded_dirs = embeddirs_fn(input_dirs_flat)
-        embedded = tf.concat([embedded, embedded_dirs], -1)
-
-    outputs_flat = batchify(fn, netchunk)(embedded)
-    outputs = tf.reshape(outputs_flat, list(
-        inputs.shape[:-1]) + [outputs_flat.shape[-1]])
-    return outputs
-
 
 def render_rays(ray_batch,
                 network_fn,
@@ -381,8 +362,8 @@ def render(H, W, focal,
     
     # Create near and far tensors with the same shape as rays
     rays_shape = tf.shape(rays_d)[0]
-    near_expanded = tf.fill([rays_shape, 1], tf.cast(near, tf.float32))
-    far_expanded = tf.fill([rays_shape, 1], tf.cast(far, tf.float32))
+    near_expanded = tf.fill([rays_shape, 1], tf.constant(near, dtype=tf.float32))
+    far_expanded = tf.fill([rays_shape, 1], tf.constant(far, dtype=tf.float32))
 
     # (ray origin, ray direction, min dist, max dist) for each ray
     rays = tf.concat([rays_o, rays_d, near_expanded, far_expanded], axis=-1)

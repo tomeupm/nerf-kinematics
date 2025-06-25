@@ -68,6 +68,8 @@ def main():
                         help='only take random rays from 1 image at a time')
     parser.add_argument("--chunk", type=int, default=1024*32,
                         help='number of rays processed in parallel, decrease if running out of memory')
+    parser.add_argument("--netchunk", type=int, default=1024*64,
+                        help='number of pts sent through network in parallel, decrease if running out of memory')
     # DE MOMENTO SIN ESTOS PARAMETROS WTF NO SE QUE SON
     # parser.add_argument('--N_samples', type=int, default=64,
     #                     help='Número de muestras por rayo (coarse)')
