@@ -145,6 +145,32 @@ def create_base_json(w, h, cax, cay, fl_x, fl_y, cx, cy, k1, k2, p1, p2, aabb_sc
     }
 
 
+def calculate_aabb_scale(matrices, scale_multiplier=1.0):
+    """
+    Calculate appropriate aabb_scale based on camera positions.
+    Returns a power-of-2 value that encompasses the scene bounding box with some margin.
+    """
+    # Extract camera positions
+    positions = np.array([[m[0][3], m[1][3], m[2][3]] for m in matrices])
+    
+    # Calculate scene center and maximum distance
+    center = positions.mean(axis=0)
+    max_distance = np.linalg.norm(positions - center, axis=1).max()
+    
+    print(f"Scene center: {center}")
+    print(f"Max distance from center: {max_distance}")
+    
+    # Calculate target size with margin
+    target_size = max_distance * 2 * scale_multiplier  # Diameter with margin
+    
+    # Round up to nearest power of 2 (minimum 1.0, maximum 128.0)
+    aabb_scale = 1.0
+    while aabb_scale < target_size and aabb_scale < 128.0:
+        aabb_scale *= 2.0
+    
+    return aabb_scale
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Convert poses.txt to Instant-NGP transforms.json with sharpness')
@@ -160,39 +186,69 @@ def main():
     parser.add_argument('--k2', type=float, default=0.0, help='Radial distortion k2')
     parser.add_argument('--p1', type=float, default=0.0, help='Tangential distortion p1')
     parser.add_argument('--p2', type=float, default=0.0, help='Tangential distortion p2')
-    parser.add_argument('--aabb_scale', type=float, default=4.0, help='AABB scale for scene bounds')
     parser.add_argument('--recenter', action='store_true', help='Recenter cameras to scene origin')
     parser.add_argument('--scale_trans', type=float, default=1.0, help='Uniform scale for camera translations')
-    parser.add_argument('--output', default='transforms_converted.json', help='Output JSON name')
+    parser.add_argument('--output', default='transforms.json', help='Output JSON name')
     args = parser.parse_args()
 
     # Parse transform matrices
     mats = parse_poses_file(args.poses)
     n_mats = len(mats)
 
-    # Optional: recenter and scale translations
-    if args.recenter or args.scale_trans != 1.0:
-        centers = np.array([[m[0][3], m[1][3], m[2][3]] for m in mats])
-        centroid = centers.mean(axis=0) if args.recenter else np.zeros(3)
-        for m in mats:
-            m[0][3] = (m[0][3] - centroid[0]) / args.scale_trans
-            m[1][3] = (m[1][3] - centroid[1]) / args.scale_trans
-            m[2][3] = (m[2][3] - centroid[2]) / args.scale_trans
+    # Separate validation data (first matrix/image)
+    if n_mats > 1:
+        val_mat = mats[0]  # First matrix for validation
+        train_mats = mats[1:]  # All except first for training
+        n_train_mats = len(train_mats)
+    else:
+        raise RuntimeError("Need at least 2 matrices to separate training and validation")
 
-    # Calculate scene center for test poses
-    centers = np.array([[m[0][3], m[1][3], m[2][3]] for m in mats])
+    # Calculate initial aabb_scale using training matrices only
+    initial_aabb_scale = calculate_aabb_scale(train_mats)
+    print(f"Initial aabb_scale (before transformations): {initial_aabb_scale}")
+
+    # Optional: recenter and scale translations
+    if args.recenter:
+        # Calculate centroid from training matrices only
+        centers = np.array([[m[0][3], m[1][3], m[2][3]] for m in train_mats])
+        center = centers.mean(axis=0) if args.recenter else np.zeros(3)
+        
+
+        # Use max distance approach for normalization
+        max_distance = np.linalg.norm(centers - center, axis=1).max()
+        scale_factor = args.scale_trans / max_distance
+        
+        # Apply transformations to training matrices
+        for m in train_mats:
+            m[0][3] = (m[0][3] - center[0]) * scale_factor
+            m[1][3] = (m[1][3] - center[1]) * scale_factor
+            m[2][3] = (m[2][3] - center[2]) * scale_factor
+        
+        # Apply same transformations to validation matrix
+        val_mat[0][3] = (val_mat[0][3] - center[0]) * scale_factor
+        val_mat[1][3] = (val_mat[1][3] - center[1]) * scale_factor
+        val_mat[2][3] = (val_mat[2][3] - center[2]) * scale_factor
+        
+        print(f"Applied recentering: {args.recenter}, scale factor: {scale_factor}")
+
+    # Calculate final aabb_scale after all transformations
+    final_aabb_scale = calculate_aabb_scale(train_mats)
+    print(f"Final aabb_scale (after transformations): {final_aabb_scale}")
+
+    # Calculate scene center for test poses (after transformations, using training data)
+    centers = np.array([[m[0][3], m[1][3], m[2][3]] for m in train_mats])
     scene_center = centers.mean(axis=0)
 
     # Determine image resolution using first available image
     w = h = None
-    for idx in range(n_mats * 2):
+    for idx in range(n_train_mats * 2):
         fname = f"{args.image_prefix}{idx}.{args.image_ext}"
         fpath = os.path.join(args.image_folder, fname)
         if os.path.isfile(fpath):
             with Image.open(fpath) as im:
                 w, h = im.size
             break
-    if w is None:
+    if w is None or h is None:
         raise FileNotFoundError("No images found matching prefix and extension in image_folder")
 
     # Compute intrinsics
@@ -203,12 +259,12 @@ def main():
     cx = args.cx if args.cx is not None else w / 2.0
     cy = args.cy if args.cy is not None else h / 2.0
 
-    # Build main JSON structure
-    out = create_base_json(w, h, cax, cay, fl_x, fl_y, cx, cy, args.k1, args.k2, args.p1, args.p2, args.aabb_scale)
+    # Build main JSON structure (training)
+    out = create_base_json(w, h, cax, cay, fl_x, fl_y, cx, cy, args.k1, args.k2, args.p1, args.p2, final_aabb_scale)
 
-    # Populate frames: sequentially assign next available image
-    next_idx = 0
-    for mat in mats:
+    # Populate training frames: sequentially assign next available image (excluding first)
+    next_idx = 1  # Start from index 1 to skip first image
+    for mat in train_mats:
         found = False
         while next_idx < n_mats * 2:
             fname = f"{args.image_prefix}{next_idx}.{args.image_ext}"
@@ -226,20 +282,45 @@ def main():
         if not found:
             raise FileNotFoundError(f"No image found for pose, checked up to index {next_idx-1}.")
 
-    # Write main JSON
+    # Write main training JSON
     with open(args.output, 'w') as of:
         json.dump(out, of, indent=2)
-    print(f"Wrote {args.output} with {n_mats} frames (size {w}x{h}).")
+    print(f"Wrote {args.output} with {n_train_mats} training frames (size {w}x{h}).")
+
+    # Generate validation JSON with the first image/matrix
+    val_out = create_base_json(w, h, cax, cay, fl_x, fl_y, cx, cy, args.k1, args.k2, args.p1, args.p2, final_aabb_scale)
+    
+    # Find the first available image for validation
+    val_found = False
+    for idx in range(n_mats * 2):  # Search from beginning
+        fname = f"{args.image_prefix}{idx}.{args.image_ext}"
+        fpath = os.path.join(args.image_folder, fname)
+        if os.path.isfile(fpath):
+            sharp = compute_sharpness(fpath)
+            val_out["frames"].append({
+                "file_path": fpath,
+                "sharpness": sharp,
+                "transform_matrix": val_mat
+            })
+            val_found = True
+            break
+    
+    if not val_found:
+        raise FileNotFoundError("No image found for validation.")
+    
+    val_filename = args.output.replace('.json', '_val.json')
+    with open(val_filename, 'w') as of:
+        json.dump(val_out, of, indent=2)
+    print(f"Wrote {val_filename} with 1 validation frame.")
 
     # Generate test JSON
-    test_out = create_base_json(w, h, cax, cay, fl_x, fl_y, cx, cy, args.k1, args.k2, args.p1, args.p2, args.aabb_scale)
+    test_out = create_base_json(w, h, cax, cay, fl_x, fl_y, cx, cy, args.k1, args.k2, args.p1, args.p2, final_aabb_scale)
     test_poses = generate_test_poses(scene_center, radius=50, n_poses=8)
     
     for i, pose in enumerate(test_poses):
         test_out["frames"].append({
             "file_path": f"./Test{i}.jpg",
-            "sharpness": 170.0,
-            "transform_matrix": pose
+            "transform_matrix_start": pose
         })
     
     test_filename = args.output.replace('.json', '_test.json')
@@ -248,13 +329,11 @@ def main():
     print(f"Wrote {test_filename} with {len(test_poses)} test frames.")
 
     # Generate video test JSON
-    video_out = create_base_json(w, h, cax, cay, fl_x, fl_y, cx, cy, args.k1, args.k2, args.p1, args.p2, args.aabb_scale)
+    video_out = create_base_json(w, h, cax, cay, fl_x, fl_y, cx, cy, args.k1, args.k2, args.p1, args.p2, final_aabb_scale)
     video_poses = generate_video_poses(scene_center, radius=40, n_poses=60)
     
     for i, pose in enumerate(video_poses):
         video_out["frames"].append({
-            "file_path": f"./Video{i:03d}.jpg",
-            "sharpness": 170.0,
             "transform_matrix": pose
         })
     
