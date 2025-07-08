@@ -1,0 +1,3 @@
+[submodule "nerf"]
+	path = nerf
+	url = https://github.com/tomeupm/nerf.git
