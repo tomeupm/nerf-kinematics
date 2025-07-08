@@ -180,8 +180,6 @@ def main():
     parser.add_argument('--image_ext', default='jpg', help='Image file extension')
     parser.add_argument('--camera_angle_x', type=float, default=87.0, help='Horizontal FOV (deg)')
     parser.add_argument('--camera_angle_y', type=float, default=58.0, help='Vertical FOV (deg)')
-    parser.add_argument('--cx', type=float, default=None, help='Principal point x (defaults to w/2)')
-    parser.add_argument('--cy', type=float, default=None, help='Principal point y (defaults to h/2)')
     parser.add_argument('--k1', type=float, default=0.0, help='Radial distortion k1')
     parser.add_argument('--k2', type=float, default=0.0, help='Radial distortion k2')
     parser.add_argument('--p1', type=float, default=0.0, help='Tangential distortion p1')
@@ -223,13 +221,27 @@ def main():
             m[0][3] = (m[0][3] - center[0]) * scale_factor
             m[1][3] = (m[1][3] - center[1]) * scale_factor
             m[2][3] = (m[2][3] - center[2]) * scale_factor
+
+            # Invert Z axis fully (rotation and translation)
+            m[0][2] *= -1
+            m[1][2] *= -1
+            m[2][2] *= -1
+            m[2][3] *= -1
         
         # Apply same transformations to validation matrix
         val_mat[0][3] = (val_mat[0][3] - center[0]) * scale_factor
         val_mat[1][3] = (val_mat[1][3] - center[1]) * scale_factor
         val_mat[2][3] = (val_mat[2][3] - center[2]) * scale_factor
+
+        val_mat[0][2] *= -1
+        val_mat[1][2] *= -1
+        val_mat[2][2] *= -1
+        val_mat[2][3] *= -1
         
         print(f"Applied recentering: {args.recenter}, scale factor: {scale_factor}")
+    else:
+        # If no recentering, still invert Z axis for all matrices
+        print("Applied Z-axis inversion for Instant-NGP compatibility")
 
     # Calculate final aabb_scale after all transformations
     final_aabb_scale = calculate_aabb_scale(train_mats)
@@ -256,8 +268,8 @@ def main():
     cay = math.radians(args.camera_angle_y)
     fl_x = 0.5 * w / math.tan(cax / 2)
     fl_y = 0.5 * h / math.tan(cay / 2)
-    cx = args.cx if args.cx is not None else w / 2.0
-    cy = args.cy if args.cy is not None else h / 2.0
+    cx = w / 2.0
+    cy = h / 2.0
 
     # Build main JSON structure (training)
     out = create_base_json(w, h, cax, cay, fl_x, fl_y, cx, cy, args.k1, args.k2, args.p1, args.p2, final_aabb_scale)
