@@ -10,3 +10,6 @@
 [submodule "nerf-pytorch"]
 	path = nerf-pytorch
 	url = https://github.com/tomeupm/nerf-pytorch.git
+[submodule "vggt"]
+	path = vggt
+	url = https://github.com/tomeupm/vggt.git
