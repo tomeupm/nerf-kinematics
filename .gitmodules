@@ -4,3 +4,9 @@
 [submodule "instant-ngp"]
 	path = instant-ngp
 	url = https://github.com/tomeupm/instant-ngp.git
+[submodule "instant-ng"]
+	path = instant-ng
+	url = https://github.com/tomeupm/nerf-pytorch.git
+[submodule "nerf-pytorch"]
+	path = nerf-pytorch
+	url = https://github.com/tomeupm/nerf-pytorch.git
