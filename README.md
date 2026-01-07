@@ -4,7 +4,7 @@
 
 Este repositorio contiene el código, datasets, modelos entrenados y resultados del Trabajo Fin de Máster realizado en el Máster Universitario en Big Data Science (2024–2025). El objetivo es evaluar la viabilidad de reconstrucción 3D mediante NeRF utilizando la **cinemática directa de un sistema robotizado** como fuente de poses, prescindiendo de soluciones tradicionales como COLMAP.
 
-El TFM se puede leer en: ![Google Drive](https://drive.google.com/file/d/11tq-uFRgVkZGmz5LvNkGe8MywMqUE7Pv/view?usp=drivesdk)
+El TFM se puede leer en: [Google Drive](https://drive.google.com/file/d/11tq-uFRgVkZGmz5LvNkGe8MywMqUE7Pv/view?usp=drivesdk)
 
 ---
 
